@@ -86,10 +86,20 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
+    /*gw 스택의 위치를 찾을 때?*/
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    struct list_elem allelem;           /* List element for all threads list. */
+    int past_priority;                  /* jy past_priority for donation */
+   //  int init_priority;                  /* jy initial priority for returning to ready queue */
+   // struct list lock_item;
+   /*gw 도네이션을 위한 것들*/
+   //  struct list multiple_donation;
+    struct lock* lock_of_holder;
 
+    struct list_elem allelem;           /* List element for all threads list. */
+    /*jy 일단 이거 추가 */
+    int64_t wakeup_ticks;
+    
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -132,10 +142,20 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_wakeup(void);
+void thread_sleep(int64_t);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+bool list_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool semaphore_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool compare_waiter_max_by_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool check_holder(struct thread* cur);
+bool check_multiple(struct thread* holder);
+void refresh(void);
+void priority_donate(struct thread* cur);
 #endif /* threads/thread.h */

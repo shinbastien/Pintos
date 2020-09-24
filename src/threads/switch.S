@@ -29,16 +29,19 @@ switch_threads:
 	pushl %edi
 
 	# Get offsetof (struct thread, stack).
+	#상수값,고정값
 .globl thread_stack_ofs
 	mov thread_stack_ofs, %edx
 
 	# Save current stack pointer to old thread's stack, if any.
+	# edx:현재 eax:struct thread에서 stack pointer? 까지의 거리
 	movl SWITCH_CUR(%esp), %eax
 	movl %esp, (%eax,%edx,1)
 
 	# Restore stack pointer from new thread's stack.
 	movl SWITCH_NEXT(%esp), %ecx
 	movl (%ecx,%edx,1), %esp
+	#결국 esp를 바꿈
 
 	# Restore caller's register state.
 	popl %edi

@@ -68,9 +68,14 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
+      /* jy 새로 넣은 코드 */
+      list_insert_ordered(&sema->waiters, &thread_current()-> elem, list_elem_compare,0);
+      // printf(list_size(&sema->waiters));
+      
+      /*list_push_back (&sema->waiters, &thread_current ()->elem);*/
       thread_block ();
     }
+
   sema->value--;
   intr_set_level (old_level);
 }
@@ -113,11 +118,17 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
+  if (!list_empty (&sema->waiters)) {
+    // list_sort (&sema->waiters, list_elem_compare,0);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
+  }
   sema->value++;
+
+    thread_yield();
+
   intr_set_level (old_level);
+
 }
 
 static void sema_test_helper (void *sema_);
@@ -192,12 +203,52 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+  struct thread* tholder = lock->holder;
+  int current_priority=thread_get_priority();
+  struct thread* current_thread =thread_current();
+  // if(tholder!=NULL){
+  //   int p1=thread_get_priority();
+  //   // if(tholder->past_priority !=NULL){
+  //   //   tholder->past_priority = tholder->priority;
+  //   // }
+  //   if(p1>tholder->priority){
+  //     tholder->priority = p1;
+  //   }
+  // }
+  /*gw:도네이션 코드**************/
+
+  if(tholder!=NULL){
+    enum intr_level old_level;
+    old_level = intr_disable();
+
+    current_thread->lock_of_holder = lock;
+    // if(list_empty(&tholder->multiple_donation))
+    //   list_push_back(&tholder->multiple_donation,&current_thread->elem);
+    // else
+      // list_insert_ordered(&tholder->multiple_donation,&current_thread->elem,list_elem_compare,0);
+    priority_donate(current_thread);
+    // refresh();
+    intr_set_level(old_level);
+
+  }
+  
+  /*gw:nest donation*/ 
+  /*gw:multiple donation*/
+
+
+  /****************************/
+
+
 
   sema_down (&lock->semaphore);
+  thread_current()->lock_of_holder =NULL;
   lock->holder = thread_current ();
+    // if  
+
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -230,6 +281,33 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+  struct thread* tholder = lock->holder;
+  // int past_priority = tholder->past_priority;
+  // if(past_priority!=NULL){
+  //   tholder->priority= tholder->past_priority;
+  // }
+  // tholder->priority= tholder->past_priority;
+
+  
+  // if(!list_empty(&tholder->multiple_donation)){
+  //   if(check_multiple(tholder)){
+  //     int biggest_priority= list_entry(list_pop_front(&tholder->multiple_donation),struct thread, elem)->priority;
+  //     if (tholder->priority<biggest_priority){
+  //       tholder->priority=biggest_priority;
+  //     }
+  //   }
+  //   else{
+  //     tholder->priority=tholder->past_priority;
+  //   }
+  // }
+  // else{
+    tholder->priority=tholder->past_priority;
+  // }
+
+
+
+
+
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
@@ -295,7 +373,12 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  // list_push_back (&cond->waiters, &waiter.elem);
+  /* gw */
+  // list_insert_ordered (&cond->waiters, &waiter.elem,semaphore_elem_compare,0);
+  /* jy */
+  list_insert_ordered(&cond->waiters, &waiter.elem, compare_waiter_max_by_elem, 0);
+
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -316,9 +399,11 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters)) 
+  if (!list_empty (&cond->waiters)) {
+    list_sort(&cond->waiters, compare_waiter_max_by_elem, 0);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -335,4 +420,72 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
+}
+// bool semaphore_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
+//   struct semaphore_elem *semaphorea = list_entry(a,struct semaphore_elem, elem);
+//   struct semaphore_elem *semaphoreb = list_entry(b,struct semaphore_elem, elem);
+//   struct list lista= (semaphorea->semaphore).waiters;
+//   struct list listb= (semaphoreb->semaphore).waiters;
+//   printf("dx");
+//   // printf("what%d",list_size(&lista));
+//   // printf("the%d",list_size(&listb));
+  
+//   int maxa=list_entry(list_max (&lista, list_elem_compare, 0),struct thread, elem)->priority;
+//   int maxb=list_entry(list_max (&listb, list_elem_compare, 0),struct thread,elem)->priority;
+//   bool result= maxa>maxb;
+//   return result;
+// }
+
+
+int find_sema_max (struct semaphore *sema) {
+  int max_priority = list_entry(list_max(&sema->waiters, list_elem_compare, 0),struct thread, elem)->priority;
+  return max_priority;
+}
+
+int waiter_max (struct semaphore_elem*waiter) {
+ return find_sema_max(&waiter->semaphore);
+} 
+bool compare_waiter_max(struct semphore_elem *waiter1, struct semaphore_elem *waiter2) {
+  bool result = waiter_max(waiter1) > waiter_max(waiter2);
+  return result;
+}
+bool compare_waiter_max_by_elem(const struct list_elem *a,const struct list_elem *b,void *aux) {
+  return compare_waiter_max(list_entry(a, struct semaphore_elem, elem), list_entry(b, struct semaphore_elem, elem));
+}
+
+
+
+
+/*gw donation을 위한 함수들*/
+bool check_holder(struct thread* cur){
+  return ((cur->lock_of_holder!=NULL)&&(cur->priority>((cur->lock_of_holder)->holder)->priority));
+}
+// bool check_multiple(struct thread* holder){
+//   struct list multiple_donation=  holder->multiple_donation;
+//   struct list_elem * cnt = list_begin(&multiple_donation);
+//   struct lock* first_lock= list_entry(cnt,struct thread,elem)->lock_of_holder;
+//   while (cnt != list_tail(&multiple_donation))
+//     {
+//       cnt = list_next(cnt);
+//       struct lock* check_lock=list_entry(cnt,struct thread,elem)->lock_of_holder;
+//       if(check_lock!=first_lock){
+//         return true;
+//       }
+//     }
+//   return false;
+// }
+
+// bool semaphore_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
+//   struct semaphore_elem *semaphorea = list_entry(a,struct semaphore_elem, elem);
+void priority_donate(struct thread* cur){
+  struct lock* acquired_lock=cur->lock_of_holder;
+  if(acquired_lock !=NULL){
+    struct thread* holder=acquired_lock ->holder;
+    if(holder !=NULL){
+      if(holder->priority<cur->priority){
+        holder->priority = cur->priority;
+        priority_donate(holder);
+      }
+    }
+  }
 }
