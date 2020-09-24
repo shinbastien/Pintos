@@ -82,9 +82,8 @@ sema_down (struct semaphore *sema)
 
 void 
 lock_down(struct lock *lock){
-  lock->lock_max = lock_max(lock);
-  struct semaphore* sema = &lock->semaphore;
   enum intr_level old_level;
+  struct semaphore* sema = &lock->semaphore;
 
   ASSERT (sema != NULL);
   ASSERT (!intr_context ());
@@ -144,9 +143,34 @@ sema_up (struct semaphore *sema)
     // list_sort (&sema->waiters, list_elem_compare,0);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
+                                
   }
   sema->value++;
+ 
+    thread_yield();
 
+  intr_set_level (old_level);
+
+}
+void
+lock_up (struct lock* lock) 
+{
+
+  enum intr_level old_level;
+  struct semaphore* sema=&lock->semaphore;
+  ASSERT (sema != NULL);
+
+  old_level = intr_disable ();
+  if (!list_empty (&sema->waiters)) {
+    // list_sort (&sema->waiters, list_elem_compare,0);
+    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+                                struct thread, elem));
+          lock->lock_max = lock_max(lock);
+
+                                
+  }
+  sema->value++;
+ 
     thread_yield();
 
   intr_set_level (old_level);
@@ -250,7 +274,7 @@ lock_acquire (struct lock *lock)
 
     current_thread->lock_of_holder = lock;
     // if(list_empty(&tholder->multiple_donation))
-    //   list_push_back(&tholder->multiple_donation,&current_thread->elem);
+      // list_push_back(&tholder->multiple_donation,&current_thread->elem);
     // else
       // list_insert_ordered(&tholder->multiple_donation,&current_thread->elem,list_elem_compare,0);
     priority_donate(current_thread);
@@ -329,7 +353,7 @@ lock_release (struct lock *lock)
 
   list_remove(&(lock->lock_elem));
 
-  if(lock_list_max (&tholder->lock_list)>tholder->past_priority)
+  if(lock_list_max (&tholder->lock_list)>(tholder->past_priority))
     tholder->priority=lock_list_max (&tholder->lock_list);
   else
     tholder->priority=tholder->past_priority;
@@ -337,7 +361,7 @@ lock_release (struct lock *lock)
 
 
 
-  sema_up (&lock->semaphore);
+  lock_up (lock);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -521,7 +545,7 @@ int lock_max(struct lock *lock){
   return find_sema_max(&lock->semaphore);
 }
 bool lock_elem_compare (struct lock *lock_a, struct lock *lock_b){
-  return lock_max(lock_a) > lock_max(lock_b);  
+  return lock_max(lock_a) < lock_max(lock_b);  
 }
 
 bool lock_list_elem_compare (const struct list_elem *a,const struct list_elem *b,void *aux) {

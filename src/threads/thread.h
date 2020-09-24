@@ -153,6 +153,8 @@ int thread_get_load_avg (void);
 
 
 bool list_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool list_elem_compare_reverse(const struct list_elem *a, const struct list_elem *b, void *aux);
+
 bool semaphore_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux);
 bool compare_waiter_max_by_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
 bool check_holder(struct thread* cur);

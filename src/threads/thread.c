@@ -409,10 +409,13 @@ thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
   thread_current ()->past_priority = new_priority;
+  if(lock_list_max (&thread_current ()->lock_list)>new_priority)
+    thread_current()->priority=lock_list_max (&thread_current ()->lock_list);
 
   if(!list_empty(&ready_list)&&thread_get_priority()<list_entry(list_begin (&ready_list), struct thread, elem)->priority){
     thread_yield();
   }
+
 
 }
 
@@ -672,6 +675,12 @@ bool list_elem_compare(const struct list_elem *a, const struct list_elem *b, voi
   int p1 = list_entry(a, struct thread, elem)->priority;
   int p2 = list_entry(b, struct thread, elem)->priority;
   bool result= p1>p2;
+  return result;
+}
+bool list_elem_compare_reverse(const struct list_elem *a, const struct list_elem *b, void *aux){
+  int p1 = list_entry(a, struct thread, elem)->priority;
+  int p2 = list_entry(b, struct thread, elem)->priority;
+  bool result= p1<p2;
   return result;
 }
 
