@@ -95,6 +95,7 @@ struct thread
    /*gw 도네이션을 위한 것들*/
    //  struct list multiple_donation;
     struct lock* lock_of_holder;
+    struct list lock_list;
 
     struct list_elem allelem;           /* List element for all threads list. */
     /*jy 일단 이거 추가 */

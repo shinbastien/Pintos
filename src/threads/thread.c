@@ -545,8 +545,8 @@ init_thread (struct thread *t, const char *name, int priority)
 
   t->past_priority = priority;
 
-  // list_init(&t->multiple_donation);
   t->lock_of_holder = &lock_of_holder;
+  list_init(&t->lock_list);
 
   
   t->magic = THREAD_MAGIC;
@@ -681,3 +681,4 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 void refresh(void){
   list_sort (&ready_list, list_elem_compare,0);
 }
+

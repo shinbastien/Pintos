@@ -71,8 +71,30 @@ sema_down (struct semaphore *sema)
       /* jy 새로 넣은 코드 */
       list_insert_ordered(&sema->waiters, &thread_current()-> elem, list_elem_compare,0);
       // printf(list_size(&sema->waiters));
-      
+
       /*list_push_back (&sema->waiters, &thread_current ()->elem);*/
+      thread_block ();
+    }
+
+  sema->value--;
+  intr_set_level (old_level);
+}
+
+void 
+lock_down(struct lock *lock){
+  lock->lock_max = lock_max(lock);
+  struct semaphore* sema = &lock->semaphore;
+  enum intr_level old_level;
+
+  ASSERT (sema != NULL);
+  ASSERT (!intr_context ());
+
+  old_level = intr_disable ();
+  while (sema->value == 0) 
+    {
+      /* jy 새로 넣은 코드 */
+      list_insert_ordered(&sema->waiters, &thread_current()-> elem, list_elem_compare,0);
+      lock->lock_max = lock_max(lock);
       thread_block ();
     }
 
@@ -219,7 +241,8 @@ lock_acquire (struct lock *lock)
   //     tholder->priority = p1;
   //   }
   // }
-  /*gw:도네이션 코드**************/
+  /*gw:도네이션 코드**************/ 
+
 
   if(tholder!=NULL){
     enum intr_level old_level;
@@ -239,14 +262,15 @@ lock_acquire (struct lock *lock)
   /*gw:nest donation*/ 
   /*gw:multiple donation*/
 
-
+  
   /****************************/
 
+  lock_down (lock);
 
-
-  sema_down (&lock->semaphore);
   thread_current()->lock_of_holder =NULL;
   lock->holder = thread_current ();
+  list_insert(list_begin (&thread_current()->lock_list),&(lock->lock_elem));
+
     // if  
 
 }
@@ -301,15 +325,18 @@ lock_release (struct lock *lock)
   //   }
   // }
   // else{
+  lock->holder = NULL;
+
+  list_remove(&(lock->lock_elem));
+
+  if(lock_list_max (&tholder->lock_list)>tholder->past_priority)
+    tholder->priority=lock_list_max (&tholder->lock_list);
+  else
     tholder->priority=tholder->past_priority;
   // }
 
 
 
-
-
-
-  lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
 
@@ -491,12 +518,16 @@ void priority_donate(struct thread* cur){
 }
 
 int lock_max(struct lock *lock){
-  return find_sema_max(lock->semaphore);
+  return find_sema_max(&lock->semaphore);
 }
 bool lock_elem_compare (struct lock *lock_a, struct lock *lock_b){
   return lock_max(lock_a) > lock_max(lock_b);  
 }
 
+bool lock_list_elem_compare (const struct list_elem *a,const struct list_elem *b,void *aux) {
+  return lock_elem_compare(list_entry(a, struct lock, lock_elem), list_entry(b, struct lock,lock_elem));
+}
+
 int lock_list_max (struct list *lock_list){
-  return list_max(lock_list, lock_elem_compare, 0)
+  return list_entry(list_max(lock_list, lock_list_elem_compare, 0),struct lock,lock_elem)->lock_max;
 }
