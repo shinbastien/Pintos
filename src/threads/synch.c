@@ -489,3 +489,14 @@ void priority_donate(struct thread* cur){
     }
   }
 }
+
+int lock_max(struct lock *lock){
+  return find_sema_max(lock->semaphore);
+}
+bool lock_elem_compare (struct lock *lock_a, struct lock *lock_b){
+  return lock_max(lock_a) > lock_max(lock_b);  
+}
+
+int lock_list_max (struct list *lock_list){
+  return list_max(lock_list, lock_elem_compare, 0)
+}
