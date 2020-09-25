@@ -161,4 +161,5 @@ bool check_holder(struct thread* cur);
 bool check_multiple(struct thread* holder);
 void refresh(void);
 void priority_donate(struct thread* cur);
+int check_readylist_prioirty(void);
 #endif /* threads/thread.h */

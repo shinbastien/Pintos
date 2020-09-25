@@ -140,7 +140,7 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    // list_sort (&sema->waiters, list_elem_compare,0);
+    list_sort (&sema->waiters, list_elem_compare,0);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
                                 
@@ -170,8 +170,10 @@ lock_up (struct lock* lock)
                                 
   }
   sema->value++;
- 
+  if(check_readylist_prioirty()>thread_get_priority()){
     thread_yield();
+  }
+
 
   intr_set_level (old_level);
 
@@ -327,9 +329,13 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+    enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
   struct thread* tholder = lock->holder;
+  old_level = intr_disable();
+
   // int past_priority = tholder->past_priority;
   // if(past_priority!=NULL){
   //   tholder->priority= tholder->past_priority;
@@ -352,16 +358,21 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
 
   list_remove(&(lock->lock_elem));
+  if(!list_empty(&tholder->lock_list)){
+  
+      if(lock_list_max (&tholder->lock_list)>=(tholder->past_priority))
+        tholder->priority=lock_list_max (&tholder->lock_list);
+      
+    }
+  else{
+          tholder->priority=tholder->past_priority;
 
-  if(lock_list_max (&tholder->lock_list)>(tholder->past_priority))
-    tholder->priority=lock_list_max (&tholder->lock_list);
-  else
-    tholder->priority=tholder->past_priority;
-  // }
+  }
 
-
+  intr_set_level(old_level);
 
   lock_up (lock);
+
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -489,8 +500,12 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 
 
 int find_sema_max (struct semaphore *sema) {
-  int max_priority = list_entry(list_max(&sema->waiters, list_elem_compare, 0),struct thread, elem)->priority;
+  if (!list_empty(&sema->waiters)){
+  int max_priority = list_entry(list_max(&sema->waiters, list_elem_compare_reverse, 0),struct thread, elem)->priority;
   return max_priority;
+  }
+  else
+    return -1;
 }
 
 int waiter_max (struct semaphore_elem*waiter) {
@@ -535,6 +550,8 @@ void priority_donate(struct thread* cur){
     if(holder !=NULL){
       if(holder->priority<cur->priority){
         holder->priority = cur->priority;
+        acquired_lock->lock_max = lock_max(acquired_lock);
+
         priority_donate(holder);
       }
     }

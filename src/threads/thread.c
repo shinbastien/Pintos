@@ -221,6 +221,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   if(t->priority>thread_get_priority()){
+    // printf("d");
     thread_yield();
   }
 
@@ -689,5 +690,8 @@ bool list_elem_compare_reverse(const struct list_elem *a, const struct list_elem
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 void refresh(void){
   list_sort (&ready_list, list_elem_compare,0);
+}
+int check_readylist_prioirty(void){
+  return list_entry(list_begin(&ready_list),struct thread,elem)->priority;
 }
 
