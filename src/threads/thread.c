@@ -100,6 +100,7 @@ thread_init (void)
   list_init (&ready_list);
   /*gw: sleep list를 위한 것*/
   list_init (&sleep_list);
+
   list_init (&all_list);
 
 
@@ -221,7 +222,6 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   if(t->priority>thread_get_priority()){
-    // printf("d");
     thread_yield();
   }
 
@@ -250,7 +250,7 @@ thread_sleep (int64_t wakeuptick)
 {
   struct thread *cur = thread_current ();
   cur->wakeup_ticks = wakeuptick;
-  list_push_back(&sleep_list, &cur->elem);
+  list_insert_ordered(&sleep_list, &cur->elem,wakeup_ticks_compare,0);
   thread_block();
 }
 /*gw 새로만든 함수*/
@@ -259,16 +259,11 @@ thread_check_sleep_list(int64_t wakeuptick)
 {
   struct list_elem * cnt = list_begin(&sleep_list);
   // int64_t min = &cnt -> wakeup_ticks;
-  while (cnt != list_tail(&sleep_list))
+  while (cnt != list_tail(&sleep_list)&&list_entry(cnt, struct thread, elem)->wakeup_ticks<=wakeuptick)
     {
       struct thread *t = list_entry(cnt, struct thread, elem);
-      if (wakeuptick >= t->wakeup_ticks)
-      {
        cnt = list_remove(cnt);
        thread_unblock(t);
-      }
-      else
-        cnt = list_next(cnt);
     }
 
   /*gw : 여기서 for 문 돌면서 wakeup할 녀석 찾으면 될듯!*/
@@ -684,6 +679,15 @@ bool list_elem_compare_reverse(const struct list_elem *a, const struct list_elem
   bool result= p1<p2;
   return result;
 }
+bool wakeup_ticks_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
+  int p1 = list_entry(a, struct thread, elem)->wakeup_ticks;
+  int p2 = list_entry(b, struct thread, elem)->wakeup_ticks;
+  bool result= p1<=p2;
+  return result;
+}
+// bool check_sleep_list(int wakeup_ticks){
+//   if(wakeup_ticks>listlist_begin(&sleep_list)
+// }
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
@@ -694,4 +698,5 @@ void refresh(void){
 int check_readylist_prioirty(void){
   return list_entry(list_begin(&ready_list),struct thread,elem)->priority;
 }
+
 

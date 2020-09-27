@@ -162,12 +162,10 @@ lock_up (struct lock* lock)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    // list_sort (&sema->waiters, list_elem_compare,0);
+    list_sort (&sema->waiters, list_elem_compare,0);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-          lock->lock_max = lock_max(lock);
-
-                                
+          lock->lock_max = lock_max(lock);                             
   }
   sema->value++;
   if(check_readylist_prioirty()>thread_get_priority()){
@@ -258,46 +256,23 @@ lock_acquire (struct lock *lock)
   struct thread* tholder = lock->holder;
   int current_priority=thread_get_priority();
   struct thread* current_thread =thread_current();
-  // if(tholder!=NULL){
-  //   int p1=thread_get_priority();
-  //   // if(tholder->past_priority !=NULL){
-  //   //   tholder->past_priority = tholder->priority;
-  //   // }
-  //   if(p1>tholder->priority){
-  //     tholder->priority = p1;
-  //   }
-  // }
-  /*gw:도네이션 코드**************/ 
-
 
   if(tholder!=NULL){
     enum intr_level old_level;
     old_level = intr_disable();
 
     current_thread->lock_of_holder = lock;
-    // if(list_empty(&tholder->multiple_donation))
-      // list_push_back(&tholder->multiple_donation,&current_thread->elem);
-    // else
-      // list_insert_ordered(&tholder->multiple_donation,&current_thread->elem,list_elem_compare,0);
     priority_donate(current_thread);
-    // refresh();
     intr_set_level(old_level);
 
   }
   
-  /*gw:nest donation*/ 
-  /*gw:multiple donation*/
-
-  
-  /****************************/
-
   lock_down (lock);
 
   thread_current()->lock_of_holder =NULL;
   lock->holder = thread_current ();
   list_insert(list_begin (&thread_current()->lock_list),&(lock->lock_elem));
 
-    // if  
 
 }
 
@@ -335,26 +310,6 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   struct thread* tholder = lock->holder;
   old_level = intr_disable();
-
-  // int past_priority = tholder->past_priority;
-  // if(past_priority!=NULL){
-  //   tholder->priority= tholder->past_priority;
-  // }
-  // tholder->priority= tholder->past_priority;
-
-  
-  // if(!list_empty(&tholder->multiple_donation)){
-  //   if(check_multiple(tholder)){
-  //     int biggest_priority= list_entry(list_pop_front(&tholder->multiple_donation),struct thread, elem)->priority;
-  //     if (tholder->priority<biggest_priority){
-  //       tholder->priority=biggest_priority;
-  //     }
-  //   }
-  //   else{
-  //     tholder->priority=tholder->past_priority;
-  //   }
-  // }
-  // else{
   lock->holder = NULL;
 
   list_remove(&(lock->lock_elem));
@@ -550,8 +505,6 @@ void priority_donate(struct thread* cur){
     if(holder !=NULL){
       if(holder->priority<cur->priority){
         holder->priority = cur->priority;
-        acquired_lock->lock_max = lock_max(acquired_lock);
-
         priority_donate(holder);
       }
     }

@@ -162,4 +162,5 @@ bool check_multiple(struct thread* holder);
 void refresh(void);
 void priority_donate(struct thread* cur);
 int check_readylist_prioirty(void);
+bool wakeup_ticks_compare(const struct list_elem *a, const struct list_elem *b, void *aux);
 #endif /* threads/thread.h */

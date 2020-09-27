@@ -19,6 +19,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+static int64_t min_sleep_ticks;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -96,6 +97,9 @@ timer_sleep (int64_t ticks)
 
   old_level = intr_disable();
   thread_sleep(wakeup_ticks);
+  if(wakeup_ticks<min_sleep_ticks){
+    min_sleep_ticks=wakeup_ticks;
+  }
   intr_set_level(old_level);
 
   /*gw: 이게 아니라 sleep을 위한 함수가 필요할듯*/
@@ -179,7 +183,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  thread_wakeup();
+  //현재 tick이 sleep_list의 최소 wakeup_ticks보다 적은 경우 thread_wakeup()을 실행
+  if(ticks>=min_sleep_ticks)
+    thread_wakeup();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
