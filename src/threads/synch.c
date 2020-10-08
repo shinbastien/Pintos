@@ -135,20 +135,23 @@ void
 sema_up (struct semaphore *sema) 
 {
   enum intr_level old_level;
-
+  
   ASSERT (sema != NULL);
-
+  struct thread *wake_up = NULL;
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
     list_sort (&sema->waiters, list_elem_compare,0);
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
-                                
+    //  thread_unblock (list_entry (list_pop_front (&sema->waiters),
+                                // struct thread, elem));
+    wake_up = list_entry (list_pop_front (&sema->waiters), struct thread, elem);
+    thread_unblock(wake_up);
   }
   sema->value++;
  
-    thread_yield();
-
+  if(wake_up != NULL &&wake_up->priority > thread_current()->priority){
+    if(!intr_context())
+      thread_yield();
+  }
   intr_set_level (old_level);
 
 }
@@ -158,20 +161,24 @@ lock_up (struct lock* lock)
 
   enum intr_level old_level;
   struct semaphore* sema=&lock->semaphore;
+  struct thread *wake_up = NULL;
+
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
     list_sort (&sema->waiters, list_elem_compare,0);
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+    wake_up = list_entry (list_pop_front (&sema->waiters),
+                                struct thread, elem);
+    thread_unblock (wake_up);
           lock->lock_max = lock_max(lock);                             
   }
   sema->value++;
-  if(check_readylist_prioirty()>thread_get_priority()){
-    thread_yield();
-  }
 
+  if(wake_up != NULL &&wake_up->priority > thread_current()->priority){
+    if(!intr_context())
+      thread_yield();
+  }
 
   intr_set_level (old_level);
 
@@ -505,6 +512,7 @@ void priority_donate(struct thread* cur){
     if(holder !=NULL){
       if(holder->priority<cur->priority){
         holder->priority = cur->priority;
+        acquired_lock->lock_max = lock_max(acquired_lock);
         priority_donate(holder);
       }
     }

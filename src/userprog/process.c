@@ -37,9 +37,16 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  char *next_ptr;
+  char * realname;
+  realname = strtok_r(file_name," ", &next_ptr);
+  
 
+
+
+  // printf("ret_ptr = [%s]\n", ret_ptr);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (realname, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -59,10 +66,30 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  char *next_ptr;
+  int argc =0;
+  char** argv[10];
+  char * token;
+  char * realname;
+  token = strtok_r(file_name," ", &next_ptr);
+  argv[0] = token;
+  while(token) 
+  { 
+    // printf("ret_ptr = [%s]\n", token); 
+    argc++;
+
+    token = strtok_r(NULL, " ", &next_ptr); 
+    argv[argc]=token;
+  }
+  success = load (argv[0], &if_.eip, &if_.esp);
+  if(success){
+    parse_stack(argv, argc, &if_.esp);
+    hex_dump(if_.esp , if_.esp , PHYS_BASE-if_.esp, true);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
+  
   if (!success) 
     thread_exit ();
 
@@ -88,6 +115,9 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  int i;
+  while(true){
+  }
   return -1;
 }
 
@@ -228,7 +258,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -431,7 +460,6 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
-
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
@@ -462,4 +490,40 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+void
+parse_stack(char** argv,int argc,void** esp){
+  int len=0;
+  for(int i =argc-1;0<=i;i--){
+    *esp=*esp-(strlen(argv[i])+1);
+    strlcpy(*esp,argv[i],strlen(argv[i])+1);    
+    len+=strlen(argv[i])+1;
+    argv[i]=*esp;
+  }
+  //word-align 
+  for(int i =0;i<4-len%4;i++){
+
+    *esp=*esp-1;
+    **(uint8_t**) esp=0;    
+  }
+  
+  *esp=*esp-4;
+  **(int**)esp=0;
+
+  for(int i =argc-1;0<=i;i--){
+
+    *esp=*esp-4;
+    **(int**)esp=argv[i];    
+  }
+
+  *esp=*esp-4;
+  **(int**)esp=*esp+4;
+
+  *esp=*esp-4;
+  **(int**)esp=argc;
+
+  *esp=*esp-4;
+  **(int**)esp=0;
+
+
 }
