@@ -69,6 +69,7 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       /* jy 새로 넣은 코드 */
+      /* Priority 순서대로 waiters 에 넣어준다. */
       list_insert_ordered(&sema->waiters, &thread_current()-> elem, list_elem_compare,0);
       // printf(list_size(&sema->waiters));
 
@@ -167,7 +168,10 @@ lock_up (struct lock* lock)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
+    //priority donate등으로 sema->waiters의 순서가 바뀌어야 할 수도 있기 때문에 다시 sort해줌
     list_sort (&sema->waiters, list_elem_compare,0);
+
+    
     wake_up = list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem);
     thread_unblock (wake_up);
@@ -472,11 +476,13 @@ int find_sema_max (struct semaphore *sema) {
 
 int waiter_max (struct semaphore_elem*waiter) {
  return find_sema_max(&waiter->semaphore);
-} 
+}
+/* cond에서 waiter 간 정렬을 하기 위해, 각 waiter의 원소 sema들 중 Priority의 최댓값을 return하여waiter 끼리 비교한다. */  
 bool compare_waiter_max(struct semphore_elem *waiter1, struct semaphore_elem *waiter2) {
   bool result = waiter_max(waiter1) > waiter_max(waiter2);
   return result;
 }
+/* compare_waiter_max의 과정을 cond-> waiter 가 list의 형태이므로, list끼리 비교할 수 있게끔 list_entry를 적용하여 비교했다. */
 bool compare_waiter_max_by_elem(const struct list_elem *a,const struct list_elem *b,void *aux) {
   return compare_waiter_max(list_entry(a, struct semaphore_elem, elem), list_entry(b, struct semaphore_elem, elem));
 }
@@ -505,6 +511,8 @@ bool check_holder(struct thread* cur){
 
 // bool semaphore_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
 //   struct semaphore_elem *semaphorea = list_entry(a,struct semaphore_elem, elem);
+
+/* nested priority donation 을 해결하기 위한 함수, 재귀적으로 진행되며, holder들의 priority를 cur의 priority로 바꿔준다. */ 
 void priority_donate(struct thread* cur){
   struct lock* acquired_lock=cur->lock_of_holder;
   if(acquired_lock !=NULL){
