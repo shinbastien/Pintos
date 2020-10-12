@@ -107,6 +107,11 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct file* fd_table [128];        /*jy fd table for each process */
+    int next_fd;                        /* the next index of file */
+
+   struct list child_list;
+   struct list_elem child_elem;
 #endif
 
     /* Owned by thread.c. */

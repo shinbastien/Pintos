@@ -374,7 +374,8 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
     // list_push_back (&ready_list, &cur->elem);
-    /*gw추가한 코드*/
+    // current thread를 ready_list의 뒤에 넣는게 아니라 prioirty 오름차순으로 정렬되게 넣음.   
+    // priority scheduling을 위한 함수 
     list_insert_ordered(&ready_list,&cur->elem,list_elem_compare,0);
 
   cur->status = THREAD_READY;
@@ -403,8 +404,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  //prioirty를 set 해줄떄 past_priority값도 바꿔준다.
   thread_current ()->priority = new_priority;
   thread_current ()->past_priority = new_priority;
+  //만약 thread_current가 lock들의 holder일 때
+  //acquirer하는 thread중 가장 큰 priority(lock_list_max)가 바꿔주려는 priority(new_priority)보다 크면
+  //thread_current의 priority 다시 갱신해준다.(dead lock문제가 발생할 수도 있기때문)
   if(lock_list_max (&thread_current ()->lock_list)>new_priority)
     thread_current()->priority=lock_list_max (&thread_current ()->lock_list);
 
@@ -540,8 +545,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-    
-
+  // t->next_fd=2;
+  // for(int i=0; i<128; i++){
+  //   t->fd_table[i]=NULL;
+  // }
   t->past_priority = priority;
 
   t->lock_of_holder = &lock_of_holder;
@@ -667,27 +674,33 @@ allocate_tid (void)
 }
 /*gw 추가한 코드*/
 
+//thread의 priority을 비교한다.
+//왼쪽 list_elem이 더 크면 true를 반환
 bool list_elem_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
   int p1 = list_entry(a, struct thread, elem)->priority;
   int p2 = list_entry(b, struct thread, elem)->priority;
   bool result= p1>p2;
   return result;
 }
+//thread의 priority을 비교한다.
+//오른쪽 list_elem이 더 크면 true를 반환
+
 bool list_elem_compare_reverse(const struct list_elem *a, const struct list_elem *b, void *aux){
   int p1 = list_entry(a, struct thread, elem)->priority;
   int p2 = list_entry(b, struct thread, elem)->priority;
   bool result= p1<p2;
   return result;
 }
+//thread의 wakeup_ticks을 비교한다.
+//alarm_system을 위해 필요한 함수
+//오른쪽 list_elem이 더 크면 true를 반환
+
 bool wakeup_ticks_compare(const struct list_elem *a, const struct list_elem *b, void *aux){
   int p1 = list_entry(a, struct thread, elem)->wakeup_ticks;
   int p2 = list_entry(b, struct thread, elem)->wakeup_ticks;
   bool result= p1<=p2;
   return result;
 }
-// bool check_sleep_list(int wakeup_ticks){
-//   if(wakeup_ticks>listlist_begin(&sleep_list)
-// }
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
