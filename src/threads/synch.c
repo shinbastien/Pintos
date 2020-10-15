@@ -94,7 +94,9 @@ lock_down(struct lock *lock){
     {
       /* jy 새로 넣은 코드 */
       list_insert_ordered(&sema->waiters, &thread_current()-> elem, list_elem_compare,0);
+      //holder의 lock의 lock_max를 갱신해준다.
       lock->lock_max = lock_max(lock);
+      
       thread_block ();
     }
 
@@ -268,6 +270,7 @@ lock_acquire (struct lock *lock)
   int current_priority=thread_get_priority();
   struct thread* current_thread =thread_current();
 
+  //nested donate를 위한 코드
   if(tholder!=NULL){
     enum intr_level old_level;
     old_level = intr_disable();
@@ -323,6 +326,7 @@ lock_release (struct lock *lock)
   old_level = intr_disable();
   lock->holder = NULL;
 
+  //multiple donate를 위한 코드
   list_remove(&(lock->lock_elem));
   if(!list_empty(&tholder->lock_list)){
   

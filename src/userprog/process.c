@@ -29,26 +29,56 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
-  tid_t tid;
+    char *fn_copy2;
 
+  tid_t tid;
+  struct thread* cur;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
+  fn_copy2 = palloc_get_page (0);
+  // printf("file name = %s\n",file_name);
   if (fn_copy == NULL)
     return TID_ERROR;
+
   strlcpy (fn_copy, file_name, PGSIZE);
+    strlcpy (fn_copy2, file_name, PGSIZE);
+
+
   char *next_ptr;
   char * realname;
-  realname = strtok_r(file_name," ", &next_ptr);
+  realname = strtok_r(fn_copy2," ", &next_ptr);
+  // printf("real_name = %s\n",realname);
+  // printf("real_name = %s\n",realname);
+  if (filesys_open(realname)==NULL)
+    return -1;
+  
   
 
 
 
-  // printf("ret_ptr = [%s]\n", ret_ptr);
+
+
   /* Create a new thread to execute FILE_NAME. */
+  cur=thread_current();
+
   tid = thread_create (realname, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(&cur->load_lock);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy2); 
+      struct thread* t;
+  struct list_elem* e;
+  if(!list_empty(&thread_current()->child_wait_list)){
+  //이거 바꿔야 댐!!!!
+  for (e = list_begin(&thread_current()->child_wait_list); e != list_end(&thread_current()->child_wait_list); e = list_next(e)) {
+    t = list_entry(e, struct thread, child_elem);
+      if (t->child_status == -1) {
+        return process_wait(tid);
+      }
+  }}
+
   return tid;
 }
 
@@ -68,14 +98,13 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   char *next_ptr;
   int argc =0;
-  char** argv[10];
+  char** argv[30];
   char * token;
   char * realname;
   token = strtok_r(file_name," ", &next_ptr);
   argv[0] = token;
   while(token) 
   { 
-    // printf("ret_ptr = [%s]\n", token); 
     argc++;
 
     token = strtok_r(NULL, " ", &next_ptr); 
@@ -84,15 +113,19 @@ start_process (void *file_name_)
   success = load (argv[0], &if_.eip, &if_.esp);
   if(success){
     parse_stack(argv, argc, &if_.esp);
-    hex_dump(if_.esp , if_.esp , PHYS_BASE-if_.esp, true);
+    
+    // hex_dump(if_.esp , if_.esp , PHYS_BASE-if_.esp, true);
   }
-
+  sema_up(&(thread_current()->parent)->load_lock);
   /* If load failed, quit. */
   palloc_free_page (file_name);
   
-  if (!success) 
-    thread_exit ();
+  if (!success) {
+    // list_remove(&(thread_current()->child_list_elem));
+    exit(-1);
+    // palloc_free_page (thread_current());
 
+  }
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -113,13 +146,48 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  int i;
-  while(true){
+  // struct list_elem* e;
+  //   printf("child tid = %d",cur->tid);
+
+
+  struct thread *cur = thread_current();
+  struct list wait_list = cur -> child_wait_list;
+  struct list_elem* e;
+  struct thread* child=NULL;
+  if (child_tid!=NULL){
+  if(!list_empty(&cur -> child_wait_list)){
+   for (e = list_begin (&wait_list); e != list_end (&wait_list);
+       e = list_next (e))
+    {
+      // printf("here  =  %d\n",list_entry(e, struct thread, child_list_elem)->tid);
+      // printf("here  =  %s\n",list_entry(e, struct thread, child_list_elem)->name);
+      // printf("here  =  %d\n",thread_current()->child_status);
+     if((child=list_entry(e, struct thread, child_list_elem))->tid == child_tid){
+      sema_down(&thread_current()->wait_lock);
+
+      list_remove(e);
+      int child_exit_status= child->child_status;
+      palloc_free_page (child);
+
+      return child_exit_status;
+     }
+    }
+  }
   }
   return -1;
+  //   }
+  // return -1; 
+   
 }
+
+struct file 
+  {
+    struct inode *inode;        /* File's inode. */
+    off_t pos;                  /* Current position. */
+    bool deny_write;            /* Has file_deny_write() been called? */
+  };
 
 /* Free the current process's resources. */
 void
@@ -127,7 +195,14 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-
+  // struct list wait_list = (cur->parent)->child_wait_list;
+  for(int i=0;i<128;i++){
+    struct file* file_now = cur->fd_table[i];
+    // if ((file_now->deny_write) == true)
+    if(file_now!=NULL){
+      close(i);
+    }
+  }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -253,6 +328,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Open executable file. */
   file = filesys_open (file_name);
+  // file_deny_write(file);
+
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -341,6 +418,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+    // file_allow_write(file);
+
   file_close (file);
   return success;
 }

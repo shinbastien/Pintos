@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <threads/synch.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -13,10 +14,12 @@ enum thread_status
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
     THREAD_DYING        /* About to be destroyed. */
   };
+typedef int pid_t;
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
+
 #define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
@@ -84,6 +87,17 @@ struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
+
+
+    tid_t pid;
+    struct semaphore wait_lock;
+    struct semaphore load_lock;
+    struct list child_wait_list;
+    struct list_elem child_list_elem;           /* List element for all threads list. */
+    struct thread* parent;
+    int child_status;
+
+
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     /*gw 스택의 위치를 찾을 때?*/
@@ -108,8 +122,10 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file* fd_table [128];        /*jy fd table for each process */
-    int next_fd;                        /* the next index of file */
+    struct semaphore* file_lock_table [128];        /*jy fd table for each process */
 
+    int next_fd;                        /* the next index of file */
+    
    struct list child_list;
    struct list_elem child_elem;
 #endif

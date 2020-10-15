@@ -193,9 +193,9 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
+  t->parent=thread_current();
+  list_push_back(&((t->parent)->child_wait_list),&t->child_list_elem);
   /*switch.s 에 cur로 안ㅇ들어갔는데 들어간 것처럼 가짜로 만들어놈*/
-  
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -345,18 +345,25 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
-
+  struct thread* parent = thread_current()->parent;
 #ifdef USERPROG
   process_exit ();
 #endif
-
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  // printf("hi! 건우\n");
+  sema_up(&parent->wait_lock);
+    // thread_current()->parent=NULL;
+
   thread_current ()->status = THREAD_DYING;
+
+
   schedule ();
+
+
   NOT_REACHED ();
 }
 
@@ -400,8 +407,7 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
-void
+ void
 thread_set_priority (int new_priority) 
 {
   //prioirty를 set 해줄떄 past_priority값도 바꿔준다.
@@ -545,16 +551,21 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  // t->next_fd=2;
-  // for(int i=0; i<128; i++){
-  //   t->fd_table[i]=NULL;
-  // }
+  t->next_fd=2;
+  for(int i=0; i<128; i++){
+    t->fd_table[i]=NULL;
+    t->file_lock_table[i]=NULL;
+  }
   t->past_priority = priority;
 
   t->lock_of_holder = &lock_of_holder;
   list_init(&t->lock_list);
 
-  
+  list_init(&t->child_wait_list);
+  sema_init(&(t->wait_lock), 0);        
+  sema_init(&(t->load_lock), 0);        
+
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -631,7 +642,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      // palloc_free_page (prev);
     }
 }
 
