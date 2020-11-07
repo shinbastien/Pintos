@@ -4,7 +4,11 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+#include "userprog/syscall.h"
+#include "vm/page.h"
+#include "threads/vaddr.h"
+#include "userprog/process.h"
+// #include "userprog/syscall.c"
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -126,7 +130,6 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
-
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
      data.  It is not necessarily the address of the instruction
@@ -139,14 +142,39 @@ page_fault (struct intr_frame *f)
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
+       struct thread * cur = thread_current();
+   //  printf("tid = %d",cur->tid);
 
   /* Count page faults. */
   page_fault_cnt++;
-
+//   printf("error!!!!!!!\n");
   /* Determine cause. */
+  //page table?에 있음
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+   bool load = false;
+    if (not_present&&is_user_vaddr(fault_addr))
+      {
+         struct spte *spte = get_spte(&cur->spt,fault_addr);
+         if (spte != NULL){
+
+	         if(spte->state == SWAP_DISK) {
+
+               load = load_from_swap(spte);
+            }
+         }
+         
+         else if (fault_addr >= f->esp - 32 ){
+            load = stack_growth(fault_addr, f);
+        }
+         
+      }
+
+
+   if(load){
+      return;
+   }
   if(not_present||write||user){
      exit(-1);
   }

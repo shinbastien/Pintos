@@ -94,17 +94,15 @@ timer_sleep (int64_t ticks)
   int64_t wakeup_ticks=start+ticks;
   ASSERT (intr_get_level () == INTR_ON);
   enum intr_level old_level;
-
   old_level = intr_disable();
+  //wakeup_ticks만큼 thread를 sleep 시킴
   thread_sleep(wakeup_ticks);
   if(wakeup_ticks<min_sleep_ticks){
+    //sleep_list의 최소 wakeup_ticks를 갱신
     min_sleep_ticks=wakeup_ticks;
   }
   intr_set_level(old_level);
 
-  /*gw: 이게 아니라 sleep을 위한 함수가 필요할듯*/
-  // while (timer_elapsed (start) < ticks) 
-  //   thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

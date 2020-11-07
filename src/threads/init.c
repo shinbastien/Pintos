@@ -113,6 +113,8 @@ main (void)
 #ifdef USERPROG
   exception_init ();
   syscall_init ();
+  init_frame_table();
+
 #endif
 
   /* Start thread scheduler and enable interrupts. */
@@ -126,9 +128,14 @@ main (void)
   locate_block_devices ();
   filesys_init (format_filesys);
 #endif
+  locate_block_devices ();
+
+  init_swap_table();
 
   printf ("Boot complete.\n");
-  
+    /*For init frame table(Procject VM 3-1)*/
+
+
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 

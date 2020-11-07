@@ -193,6 +193,7 @@ bool
 pagedir_is_accessed (uint32_t *pd, const void *vpage) 
 {
   uint32_t *pte = lookup_page (pd, vpage, false);
+  // printf("hi22");
   return pte != NULL && (*pte & PTE_A) != 0;
 }
 

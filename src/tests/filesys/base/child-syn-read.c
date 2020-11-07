@@ -22,13 +22,11 @@ main (int argc, const char *argv[])
 
   test_name = "child-syn-read";
   quiet = true;
-  
   CHECK (argc == 2, "argc must be 2, actually %d", argc);
   child_idx = atoi (argv[1]);
 
   random_init (0);
   random_bytes (buf, sizeof buf);
-
   CHECK ((fd = open (file_name)) > 1, "open \"%s\"", file_name);
   for (i = 0; i < sizeof buf; i++) 
     {

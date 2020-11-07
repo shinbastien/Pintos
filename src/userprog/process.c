@@ -17,7 +17,9 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#include "vm/frame.h"
+#include "vm/page.h"
+#include "hash.h"
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -35,29 +37,23 @@ process_execute (const char *file_name)
   struct thread* cur;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  fn_copy2 = palloc_get_page (0);
-  // printf("file name = %s\n",file_name);
+  fn_copy = palloc_get_page (PAL_USER);
+  /* for files real name(ex)echo) */
+  fn_copy2 = palloc_get_page (PAL_USER);
+
   if (fn_copy == NULL)
     return TID_ERROR;
 
   strlcpy (fn_copy, file_name, PGSIZE);
-    strlcpy (fn_copy2, file_name, PGSIZE);
+  strlcpy (fn_copy2, file_name, PGSIZE);
 
 
   char *next_ptr;
   char * realname;
   realname = strtok_r(fn_copy2," ", &next_ptr);
-  // printf("real_name = %s\n",realname);
-  // printf("real_name = %s\n",realname);
   if (filesys_open(realname)==NULL)
     return -1;
   
-  
-
-
-
-
 
   /* Create a new thread to execute FILE_NAME. */
   cur=thread_current();
@@ -65,19 +61,22 @@ process_execute (const char *file_name)
   tid = thread_create (realname, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&cur->load_lock);
 
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
-    palloc_free_page (fn_copy2); 
-      struct thread* t;
+    palloc_free_page (fn_copy2);
+   }
+   
+  palloc_free_page (fn_copy2);
+  struct thread* child_thread;
   struct list_elem* e;
   if(!list_empty(&thread_current()->child_wait_list)){
-  //이거 바꿔야 댐!!!!
   for (e = list_begin(&thread_current()->child_wait_list); e != list_end(&thread_current()->child_wait_list); e = list_next(e)) {
-    t = list_entry(e, struct thread, child_elem);
-      if (t->child_status == -1) {
+      child_thread = list_entry(e, struct thread, child_list_elem);
+      if (child_thread->exit == 1) {
         return process_wait(tid);
       }
-  }}
+    }
+  }
 
   return tid;
 }
@@ -87,6 +86,8 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  init_spt(&(thread_current()->spt));
+
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -97,10 +98,9 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   char *next_ptr;
-  int argc =0;
+  int argc = 0;
   char** argv[30];
   char * token;
-  char * realname;
   token = strtok_r(file_name," ", &next_ptr);
   argv[0] = token;
   while(token) 
@@ -110,28 +110,34 @@ start_process (void *file_name_)
     token = strtok_r(NULL, " ", &next_ptr); 
     argv[argc]=token;
   }
+
   success = load (argv[0], &if_.eip, &if_.esp);
+
   if(success){
     parse_stack(argv, argc, &if_.esp);
-    
-    // hex_dump(if_.esp , if_.esp , PHYS_BASE-if_.esp, true);
-  }
-  sema_up(&(thread_current()->parent)->load_lock);
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
-  
-  if (!success) {
-    // list_remove(&(thread_current()->child_list_elem));
-    exit(-1);
-    // palloc_free_page (thread_current());
+    sema_up(&(thread_current()->parent)->load_lock);
+    palloc_free_page (file_name);
+
 
   }
+  else {
+    // list_remove(&(thread_current()->child_list_elem));
+
+    thread_current()->exit = 1;
+    sema_up(&(thread_current()->parent)->load_lock);
+    /* If load failed, quit. */
+    palloc_free_page (file_name);
+    exit(-1);
+    }
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+  //function return 스택에 쌓아놓고 새로운 function call을 함
+  
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -148,38 +154,25 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
-  // struct list_elem* e;
-  //   printf("child tid = %d",cur->tid);
-
-
   struct thread *cur = thread_current();
   struct list wait_list = cur -> child_wait_list;
   struct list_elem* e;
   struct thread* child=NULL;
   if (child_tid!=NULL){
-  if(!list_empty(&cur -> child_wait_list)){
-   for (e = list_begin (&wait_list); e != list_end (&wait_list);
-       e = list_next (e))
-    {
-      // printf("here  =  %d\n",list_entry(e, struct thread, child_list_elem)->tid);
-      // printf("here  =  %s\n",list_entry(e, struct thread, child_list_elem)->name);
-      // printf("here  =  %d\n",thread_current()->child_status);
-     if((child=list_entry(e, struct thread, child_list_elem))->tid == child_tid){
-      sema_down(&thread_current()->wait_lock);
-
-      list_remove(e);
-      int child_exit_status= child->child_status;
-      palloc_free_page (child);
-
-      return child_exit_status;
-     }
+    if(!list_empty(&cur -> child_wait_list)){
+      for (e = list_begin (&wait_list); e != list_end (&wait_list);e = list_next (e))
+      {
+        if((child=list_entry(e, struct thread, child_list_elem))->tid == child_tid){
+          sema_down(&thread_current()->wait_lock);
+          list_remove(e);
+          int child_exit_status= child->child_status;
+          palloc_free_page (child);
+          return child_exit_status;
+        }
+      }
     }
   }
-  }
-  return -1;
-  //   }
-  // return -1; 
-   
+  return -1;   
 }
 
 struct file 
@@ -194,15 +187,18 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+  struct thread* parent = thread_current()->parent;
   uint32_t *pd;
   // struct list wait_list = (cur->parent)->child_wait_list;
   for(int i=0;i<128;i++){
     struct file* file_now = cur->fd_table[i];
     // if ((file_now->deny_write) == true)
     if(file_now!=NULL){
-      close(i);
+      file_close(file_now);
     }
   }
+  
+  sema_up(&parent->wait_lock);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -494,8 +490,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-
   file_seek (file, ofs);
+
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -503,18 +499,31 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
          and zero the final PAGE_ZERO_BYTES bytes. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
+      // if (page_read_bytes == PGSIZE)
+      //   printf("hi9 \n");
+      // else if (page_zero_bytes == PGSIZE)
+      //   printf("hi10 \n");
+      // else
+      //   printf("hi11 \n");
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      struct spte* spte = create_spte(upage,MEMORY);
+      hash_insert (&(thread_current()->spt), &(spte->elem));
+      uint8_t *kpage = frame_alloc (PAL_USER,spte);
+
+      // if (kpage == NULL)
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
+      // if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
+          // palloc_free_page (kpage);
           palloc_free_page (kpage);
+
           return false; 
         }
+      // memset (kpage + page_read_bytes, 0, page_zero_bytes);
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Add the page to the process's address space. */
@@ -543,8 +552,10 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success) {
         *esp = PHYS_BASE;
+        thread_current()->esp =*esp;
+      }
       else
         palloc_free_page (kpage);
     }
@@ -578,31 +589,95 @@ parse_stack(char** argv,int argc,void** esp){
     strlcpy(*esp,argv[i],strlen(argv[i])+1);    
     len+=strlen(argv[i])+1;
     argv[i]=*esp;
-  }
+  }                                 
+  /* insert the arguments in the stack the data is the char */
   //word-align 
   for(int i =0;i<4-len%4;i++){
 
     *esp=*esp-1;
     **(uint8_t**) esp=0;    
-  }
+  }                                 /* we match the stack pointer to be fit with the multiple of 4 */
   
   *esp=*esp-4;
-  **(int**)esp=0;
+  **(int**)esp=0;                   /* dummy argv[] for stack filled with 0 */
 
   for(int i =argc-1;0<=i;i--){
 
     *esp=*esp-4;
     **(int**)esp=argv[i];    
-  }
+  }                                 /* insert the location address of the arguments in the stack */
 
   *esp=*esp-4;
-  **(int**)esp=*esp+4;
+  **(int**)esp=*esp+4;              /* the starting address of argv, the address of argv[0] */
 
   *esp=*esp-4;
-  **(int**)esp=argc;
+  **(int**)esp=argc;                /* insert argc, the number of arguments */
 
   *esp=*esp-4;
-  **(int**)esp=0;
+  **(int**)esp=0;                   /* becomes the return address of the stack */
+  thread_current()->esp = *esp;
+}
 
+// /*For project 3, VM */
+// struct lock frame_table_lock;
+// struct list frame_table;
+// struct fte {
+//   void *frame;
+//   // struct sup_page_entry *spte;
+//   struct thread *thread;
+//   struct list_elem elem;
+// };
 
+// void*
+// frame_alloc (enum palloc_flags flags){
+//   if ((flags & PAL_USER) == 0 )
+//     return NULL;
+//   void *frame = palloc_get_page(flags);
+//   // if (!frame){
+//   //   lock_acquire(&frame_table_lock);
+//   //   struct fte *fte = find_victim();
+//   //   lock_release(&frame_table_lock);
+//   //   frame = fte->frame;
+//   //   // swap_out(frame);
+//   //   // // swap_out된 frame의 spte, pte 업데이트
+//   //   // spte_update(fte->spte)
+//   //   // frame_table_update(fte, spte, thread_current());
+
+//   //   } else {
+//   create_fte(frame);
+//   // }
+
+//   return frame;
+// }
+// // struct fte* 
+// // find_victim (){ 
+// //   struct list_elem *evict_elem = list_pop_back(&frame_table);
+// //   list_push_front(&frame_table, evict_elem)
+// //   return list_entry (evict_elem, struct fte, elem);
+// // }
+// // void *
+// // frame_table_update(struct fte fte  ,struct spte spte,struct thread* cur){
+
+// // }
+// void *
+// create_fte(void * frame){
+//   struct fte* fte=&frame;
+//   fte->thread = thread_current();
+//   fte->frame= frame;
+//   list_push_back(&frame_table,&fte->elem);
+  
+// }
+// void 
+// init_frame_table(void){
+//   list_init(&frame_table);
+// }
+bool
+stack_growth(void* fault_addr, struct intr_frame *f){
+  bool success = false;
+  struct spte* spte= create_spte(fault_addr,MEMORY);
+  void* frame = frame_alloc(PAL_USER,spte);
+  // success = install_page (((uint8_t *) PHYS_BASE) - 2*PGSIZE, frame, true);
+  success = install_page (pg_round_down(thread_current()->esp-PGSIZE), frame, true);
+  thread_current()->esp = pg_round_down(thread_current()->esp-PGSIZE);
+  return success;
 }

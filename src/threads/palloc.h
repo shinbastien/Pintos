@@ -16,5 +16,8 @@ void *palloc_get_page (enum palloc_flags);
 void *palloc_get_multiple (enum palloc_flags, size_t page_cnt);
 void palloc_free_page (void *);
 void palloc_free_multiple (void *, size_t page_cnt);
+// void *frame_alloc(enum palloc_flags);
+// void *create_fte(void *frame);
+// void init_frame_table(void);
 
 #endif /* threads/palloc.h */

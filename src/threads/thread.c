@@ -13,6 +13,9 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "vm/frame.h"
+#include "vm/page.h"
+
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -29,6 +32,8 @@ static struct list all_list;
 
 /*gw:sleep list 가 필요하지 않을까??*/
 static struct list sleep_list;
+
+// static struct list frame_table;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -102,7 +107,6 @@ thread_init (void)
   list_init (&sleep_list);
 
   list_init (&all_list);
-
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -347,6 +351,8 @@ thread_exit (void)
   ASSERT (!intr_context ());
   struct thread* parent = thread_current()->parent;
 #ifdef USERPROG
+  // destroy_spt();
+
   process_exit ();
 #endif
   /* Remove thread from all threads list, set our status to dying,
@@ -355,9 +361,10 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
   // printf("hi! 건우\n");
-  sema_up(&parent->wait_lock);
+  // sema_up(&parent->wait_lock);
     // thread_current()->parent=NULL;
-
+  //   struct thread* t;
+  // struct list_elem* e;
   thread_current ()->status = THREAD_DYING;
 
 
@@ -551,10 +558,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->next_fd=2;
-  for(int i=0; i<128; i++){
+  // t->next_fd=2;
+  t->exit=0;
+
+  for(int i=0; i<129; i++){
     t->fd_table[i]=NULL;
-    t->file_lock_table[i]=NULL;
   }
   t->past_priority = priority;
 

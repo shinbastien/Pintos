@@ -180,3 +180,57 @@ page_from_pool (const struct pool *pool, void *page)
 
   return page_no >= start_page && page_no < end_page;
 }
+// /*For project 3, VM */
+// struct lock frame_table_lock;
+// struct list frame_table;
+// struct fte {
+//   void *frame;
+//   // struct sup_page_entry *spte;
+//   struct thread *thread;
+//   struct list_elem elem;
+// };
+
+
+// void*
+// frame_alloc (enum palloc_flags flags){
+//   if ((flags & PAL_USER) == 0 )
+//     return NULL;
+//   void *frame = palloc_get_page(flags);
+//   // if (!frame){
+//   //   lock_acquire(&frame_table_lock);
+//   //   struct fte *fte = find_victim();
+//   //   lock_release(&frame_table_lock);
+//   //   frame = fte->frame;
+//   //   // swap_out(frame);
+//   //   // // swap_out된 frame의 spte, pte 업데이트
+//   //   // spte_update(fte->spte)
+//   //   // frame_table_update(fte, spte, thread_current());
+
+//   //   } else {
+//   create_fte(frame);
+//   // }
+
+//   return frame;
+// }
+// // struct fte* 
+// // find_victim (){ 
+// //   struct list_elem *evict_elem = list_pop_back(&frame_table);
+// //   list_push_front(&frame_table, evict_elem)
+// //   return list_entry (evict_elem, struct fte, elem);
+// // }
+// // void *
+// // frame_table_update(struct fte fte  ,struct spte spte,struct thread* cur){
+
+// // }
+// void *
+// create_fte(void * frame){
+//   struct fte* fte=&frame;
+//   fte->thread = thread_current();
+//   fte->frame= frame;
+//   list_push_back(&frame_table,&fte->elem);
+  
+// }
+// void 
+// init_frame_table(void){
+//   list_init(&frame_table);
+// }

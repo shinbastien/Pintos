@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include <threads/synch.h>
+#include <hash.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,15 +90,6 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
 
 
-    tid_t pid;
-    struct semaphore wait_lock;
-    struct semaphore load_lock;
-    struct list child_wait_list;
-    struct list_elem child_list_elem;           /* List element for all threads list. */
-    struct thread* parent;
-    int child_status;
-
-
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     /*gw 스택의 위치를 찾을 때?*/
@@ -121,17 +113,30 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct file* fd_table [128];        /*jy fd table for each process */
-    struct semaphore* file_lock_table [128];        /*jy fd table for each process */
+    struct file* fd_table [130];        /*jy fd table for each process */
 
-    int next_fd;                        /* the next index of file */
-    
-   struct list child_list;
-   struct list_elem child_elem;
+   //  int next_fd;                        /* the next index of file */
+
+   //For project 3-1 spt
+
+
+
+    tid_t pid;
+    struct semaphore wait_lock;
+    struct semaphore load_lock;
+    struct list child_wait_list;                /*jy The list of children of the parent */
+    struct list_elem child_list_elem;           /*jy List element for child processes when inside parent's child_wait_list. */
+    struct thread* parent;
+    int child_status;
+    int exit;
+    void* esp;
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+       struct hash spt;
+
   };
 
 /* If false (default), use round-robin scheduler.

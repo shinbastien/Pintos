@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "vm/frame.h"
+#include "vm/swap.h"
 /* Page directory with kernel mappings only. */
 extern uint32_t *init_page_dir;
 
