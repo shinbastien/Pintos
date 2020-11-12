@@ -113,6 +113,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -186,7 +187,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
-
+ 
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -557,6 +558,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+  // printf("stack = %d",t);
   t->priority = priority;
   // t->next_fd=2;
   t->exit=0;
@@ -589,7 +591,6 @@ alloc_frame (struct thread *t, size_t size)
   /* Stack data is always allocated in word-size units. */
   ASSERT (is_thread (t));
   ASSERT (size % sizeof (uint32_t) == 0);
-
   t->stack -= size;
   return t->stack;
 }
@@ -658,7 +659,6 @@ thread_schedule_tail (struct thread *prev)
    the running process's state must have been changed from
    running to some other state.  This function finds another
    thread to run and switches to it.
-
    It's not safe to call printf() until thread_schedule_tail()
    has completed. */
 static void
@@ -674,7 +674,6 @@ schedule (void)
 
   if (cur != next)
     prev = switch_threads (cur, next);
-  
   thread_schedule_tail (prev);
 }
 

@@ -284,7 +284,6 @@ memset (void *dst_, int value, size_t size)
   
   while (size-- > 0)
     *dst++ = value;
-
   return dst_;
 }
 

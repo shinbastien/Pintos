@@ -13,6 +13,6 @@ void parse_stack(char** argv,int argc,void** esp);
 // void *frame_alloc(enum palloc_flags);
 // void *create_fte(void *frame);
 // void init_frame_table(void);
-bool stack_growth(void* fault_addr, struct intr_frame *f);
+bool stack_growth(void* fault_addr);
 
 #endif /* userprog/process.h */

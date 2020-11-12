@@ -143,39 +143,58 @@ page_fault (struct intr_frame *f)
      be assured of reading CR2 before it changed). */
   intr_enable ();
        struct thread * cur = thread_current();
-   //  printf("tid = %d",cur->tid);
+      //  printf("tid = %d\n",cur->tid);
 
   /* Count page faults. */
   page_fault_cnt++;
 //   printf("error!!!!!!!\n");
+   // printf("hi 정윤 \n");
   /* Determine cause. */
   //page table?에 있음
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+         //   printf("fault addr : %d\n",fault_addr);
    bool load = false;
     if (not_present&&is_user_vaddr(fault_addr))
       {
-         struct spte *spte = get_spte(&cur->spt,fault_addr);
+         // printf("hi 정윤2 \n");
+         // printf("cur tid  = %d\n",cur->tid);
+         // struct spte *spte = get_spte(&cur->spt,pg_round_down(fault_addr));
+         struct spte *spte = get_spte(&cur->spt,pg_round_down(fault_addr));
          if (spte != NULL){
 
 	         if(spte->state == SWAP_DISK) {
-
+               // printf("hi \n");
                load = load_from_swap(spte);
+               // printf("after load_from_swap\n");
             }
          }
          
-         else if (fault_addr >= f->esp - 32 ){
-            load = stack_growth(fault_addr, f);
+         else if (fault_addr >= f->esp - 32){
+            // printf("f->esp = %d\n",f->esp);
+            //             printf("fault addr= %d\n",fault_addr);
+
+            // printf("is it stack growth? \n");
+            load = stack_growth(fault_addr);
         }
          
       }
 
 
    if(load){
+      // printf("loaded\n");
       return;
    }
+   // if(write)
+   //    printf("write\n");
+   // if(user)
+   //    printf("user\n");
+   // if(not_present)
+   //    printf("not p\n");
   if(not_present||write||user){
+               //  printf("fault addr : %d",fault_addr);
+
      exit(-1);
   }
   
