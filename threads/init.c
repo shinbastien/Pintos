@@ -51,6 +51,9 @@ static const char *filesys_bdev_name;
 static const char *scratch_bdev_name;
 #ifdef VM
 static const char *swap_bdev_name;
+// static struct block *swap_block;
+// static struct bitmap *swap_table;
+
 #endif
 #endif /* FILESYS */
 
@@ -128,9 +131,9 @@ main (void)
   locate_block_devices ();
   filesys_init (format_filesys);
 #endif
-  locate_block_devices ();
-
+#ifdef VM
   init_swap_table();
+#endif
 
   printf ("Boot complete.\n");
     /*For init frame table(Procject VM 3-1)*/

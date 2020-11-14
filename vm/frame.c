@@ -13,23 +13,31 @@ void*
 frame_alloc (enum palloc_flags flags,struct spte *spte){
   if ((flags & PAL_USER) == 0 )
     return NULL;
+    // printf("1 \n");
+    lock_acquire(&frame_table_lock);
 
   void *frame = palloc_get_page(flags);
+    // printf("here 1? \n");
+      lock_release(&frame_table_lock);
+
   if (!frame){
     // printf("here?");
+    // printf("2 \n");
     lock_acquire(&frame_table_lock);
     struct fte *fte = find_victim();
+        lock_release(&frame_table_lock);
+
     frame = fte->frame;
-    block_sector_t sector= swap_out(fte);
+    swap_out(fte);
 
     // swap_out된 frame의 spte, pte 업데이트
     // spte_update(fte->spte);
     frame_table_update(fte, spte, thread_current());
-    lock_release(&frame_table_lock);
 
     } else {
 
   create_fte(frame,spte);
+
   }
   return frame;
 }
@@ -116,6 +124,7 @@ create_fte(void * frame,struct spte *spte){
 
   fte->frame= frame;
   fte->spte=spte;
+  // printf("3 \n");
   lock_acquire(&frame_table_lock);
 
   list_push_back(&frame_table,&fte->elem);
@@ -133,8 +142,10 @@ init_frame_table(void){
 
 void
 free_frame(void* frame){
+  printf("free\n");
   struct fte* free_frame;
   struct list_elem* e;
+    // printf("4 \n");
     lock_acquire(&frame_table_lock);
 
   for(e=list_begin(&frame_table);e!=list_end(&frame_table);e=list_next(e)){
@@ -143,12 +154,15 @@ free_frame(void* frame){
       hash_delete(&free_frame->thread->spt,&free_frame->spte->elem);
       free(free_frame->spte);
       free(free_frame);
+        lock_release(&frame_table_lock);
+
       break;
     }
   }
-  lock_release(&frame_table_lock);
 
   palloc_free_page(frame);
+    lock_release(&frame_table_lock);
+
 }
 struct fte*
 find_frame(void* frame){

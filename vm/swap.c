@@ -9,6 +9,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+// #include "threads/init.c"
 // #define SECTORS_PER_PAGE (PGSIZE / BLOCK_SECTOR_SIZE)
 
 struct lock swap_lock;
@@ -17,35 +18,49 @@ static struct bitmap *swap_table;
 
 block_sector_t swap_out (struct fte *victim) {
         // printf("swap out \n");
-
-    
+    // size_t a=   PGSIZE/BLOCK_SECTOR_SIZE;
+    // printf("sector per page = %d\n",a);
+    // printf("bitmap size = %d\n",block_size(swap_block)/a);
+    // printf("swap 1 %d\n",thread_current()->tid);
     lock_acquire(&swap_lock);
-        // printf("swap_out\n");
+        // printf("success\n");
+
+        // printf("swap_out at %d %d\n",thread_current()->tid,victim->thread->tid);
 
     // printf("swap_out\n");
     //block_sector size가 512B. 페이지 하나를 저장하기 위해서 8개가 필요
     block_sector_t free_index = bitmap_scan_and_flip(swap_table, 0, 1, 0);
     if (free_index == BITMAP_ERROR) PANIC("NO free index in swap block");
 
+        // printf("victim = %d\n",victim->frame);
+        // printf("free = %d\n",free_index);
 
     for (int i = 0; i < 8; i++){ 
-        block_write(swap_block, free_index*8 + i, (victim->frame)+ i * BLOCK_SECTOR_SIZE);
+        block_write(swap_block, free_index*8 + i, (uint8_t *)(victim->frame)+ i * BLOCK_SECTOR_SIZE);
     }
+
     victim->spte->swap_location=free_index;
+        // printf("success\n");
 
     pagedir_clear_page (victim->thread->pagedir,victim->spte->upage); 
     // dirty = pagedir_is_dirty (victim->thread->pagedir, victim->spte->upage);
+        // printf("success\n");
 
     victim->spte->state=SWAP_DISK;
+            // printf("success\n");
+
     lock_release(&swap_lock);
+    // printf("swap r 1 %d\n",thread_current()->tid);
+
     return free_index;
 }
 void swap_in (block_sector_t swap_index,void* frame) {  
+    // printf("swap 2 %d\n",thread_current()->tid);
     lock_acquire(&swap_lock);
-
     struct fte* fte = find_frame(frame);
             // printf("upage=%d\n",fte->spte->upage);
-
+        // printf("swap_in start at %d %d\n",thread_current()->tid,fte->thread->tid);
+        // ASSERT(fte != NULL);
         ASSERT(fte->frame !=NULL);
     // int swap_index = fte->spte->swap_location;
     // printf("%d\n",fte->thread->tid);
@@ -62,7 +77,11 @@ void swap_in (block_sector_t swap_index,void* frame) {
     // printf("hi 정윤50 \n");
     fte->spte->swap_location=-1;
     fte->spte->state=MEMORY;
+            // printf("swap_in finish at %d %d\n",thread_current()->tid,fte->thread->tid);
+
     lock_release(&swap_lock);
+        // printf("swap r 2 %d\n",thread_current()->tid);
+
 }
 void
 init_swap_table(void){

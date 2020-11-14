@@ -200,6 +200,9 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
   t->parent=thread_current();
   list_push_back(&((t->parent)->child_wait_list),&t->child_list_elem);
+    list_push_back(&((t->parent)->child_exec_list),&t->child_exec_elem);
+
+
   /*switch.s 에 cur로 안ㅇ들어갔는데 들어간 것처럼 가짜로 만들어놈*/
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -572,6 +575,8 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->lock_list);
 
   list_init(&t->child_wait_list);
+    list_init(&t->child_exec_list);
+
   sema_init(&(t->wait_lock), 0);        
   sema_init(&(t->load_lock), 0);        
 
@@ -683,8 +688,9 @@ allocate_tid (void)
 {
   static tid_t next_tid = 1;
   tid_t tid;
-
+  // printf("tid lock acquire");
   lock_acquire (&tid_lock);
+  // printf("tid lock acquire success");
   tid = next_tid++;
   lock_release (&tid_lock);
 

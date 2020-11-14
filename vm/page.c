@@ -45,6 +45,7 @@ get_spte(struct hash* spt,void* fault_addr){
     struct hash_elem* get = hash_find (spt,&spte.elem);
 
     if(get ==NULL){
+        // printf("hi \n");
         return NULL;
     }
     else{

@@ -113,7 +113,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;                      /* Close a file. */
     default:
       exit(-1);
-      break;
+      // break;
   }
   // Original code call thread_exit() every time
   // thread_exit ();
@@ -136,9 +136,14 @@ void exit (int status){
 
 /* we use tid as pid */
 tid_t exec (const char *cmd_line){
+  // sema_down(&file_lock);
+  // filesys_open(cmd_line);
 
-  
-  return process_execute(cmd_line);
+  // sema_up(&file_lock);
+
+  tid_t tid=process_execute(cmd_line);
+
+  return tid;
 }
 
 int wait (tid_t pid){
@@ -154,8 +159,8 @@ bool create (const char *file, unsigned initial_size){
     exit(-1);
   }
   else if(strlen(file)==0||strlen(file)>14){
-
     return 0;
+    // sema_up(&file_lock);
   }
   /* If file is valid, create file with initial size */
   else{
@@ -258,7 +263,7 @@ int open (const char *file){
   sema_down(&file_lock);
   opened_file = filesys_open (file);
         // printf("open %s\n",file);
-
+  // sema_up(&file_lock);
   if(opened_file==NULL){
     sema_up(&file_lock);
 
@@ -302,9 +307,10 @@ unsigned tell (int fd){
 }
 
 void close (int fd){
+    sema_down(&file_lock);
+
   struct thread *cur =thread_current();
   struct file* file = cur->fd_table[fd];
-  sema_down(&file_lock);
   if(file!=NULL){
         // printf("close_success %d\n",thread_current()->tid);
 
@@ -323,5 +329,9 @@ static inline void check_user_sp(const void* sp){
   if(!is_user_vaddr(sp)||sp<0x08048000){
     exit(-1);
   }
+  // 	void *ptr = pagedir_get_page(thread_current()->pagedir,sp);
+  // if(!ptr){
+  //   printf("here\n");
+  // }
 }
 

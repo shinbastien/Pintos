@@ -126,6 +126,9 @@ struct thread
     struct semaphore load_lock;
     struct list child_wait_list;                /*jy The list of children of the parent */
     struct list_elem child_list_elem;           /*jy List element for child processes when inside parent's child_wait_list. */
+        struct list child_exec_list;                /*jy The list of children of the parent */
+    struct list_elem child_exec_elem;           /*jy List element for child processes when inside parent's child_wait_list. */
+
     struct thread* parent;
     int child_status;
     int exit;

@@ -141,27 +141,25 @@ page_fault (struct intr_frame *f)
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
+
   intr_enable ();
        struct thread * cur = thread_current();
-      //  printf("tid = %d\n",cur->tid);
 
   /* Count page faults. */
   page_fault_cnt++;
-//   printf("error!!!!!!!\n");
    // printf("hi 정윤 \n");
   /* Determine cause. */
   //page table?에 있음
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-         //   printf("fault addr : %d\n",fault_addr);
    bool load = false;
     if (not_present&&is_user_vaddr(fault_addr))
       {
          // printf("hi 정윤2 \n");
          // printf("cur tid  = %d\n",cur->tid);
          // struct spte *spte = get_spte(&cur->spt,pg_round_down(fault_addr));
-         struct spte *spte = get_spte(&cur->spt,pg_round_down(fault_addr));
+         struct spte *spte = get_spte(&cur->spt,(fault_addr));
          if (spte != NULL){
 
 	         if(spte->state == SWAP_DISK) {

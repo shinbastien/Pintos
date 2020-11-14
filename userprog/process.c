@@ -22,6 +22,7 @@
 #include "hash.h"
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+        struct semaphore sema;
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -34,6 +35,7 @@ process_execute (const char *file_name)
     char *fn_copy2;
   tid_t tid;
   struct thread* cur;
+  // printf("process_execute \n");
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -53,10 +55,22 @@ process_execute (const char *file_name)
   char *next_ptr;
   char * realname;
   realname = strtok_r(fn_copy2," ", &next_ptr);
-  if (filesys_open(realname)==NULL){
-    // printf("error2\n");
-    return -1;
+        // printf("real naem %s\n",realname);
+          struct thread* child_thread;
+  struct list_elem* e;
+
+  if(!list_empty(&thread_current()->child_exec_list)){
+  for (e = list_begin(&thread_current()->child_exec_list); e != list_end(&thread_current()->child_exec_list); e = list_next(e)) {
+      child_thread = list_entry(e, struct thread, child_exec_elem);
+      if (!strcmp(child_thread->name,realname)) {
+        sema_down(&sema);
+      }
+    }
   }
+  // if (filesys_open(realname)==NULL){
+  //   printf("error2\n");
+  //   return -1;
+  // }
   /* Create a new thread to execute FILE_NAME. */
   cur=thread_current();
 
@@ -69,8 +83,6 @@ process_execute (const char *file_name)
    }
 
   palloc_free_page (fn_copy2);
-  struct thread* child_thread;
-  struct list_elem* e;
   if(!list_empty(&thread_current()->child_wait_list)){
   for (e = list_begin(&thread_current()->child_wait_list); e != list_end(&thread_current()->child_wait_list); e = list_next(e)) {
       child_thread = list_entry(e, struct thread, child_list_elem);
@@ -89,6 +101,7 @@ static void
 start_process (void *file_name_)
 {
   // printf("start_process %d\n",thread_current()->tid);
+
   init_spt(&(thread_current()->spt));
 
   char *file_name = file_name_;
@@ -104,6 +117,7 @@ start_process (void *file_name_)
   int argc = 0;
   char** argv[30];
   char * token;
+
   token = strtok_r(file_name," ", &next_ptr);
   argv[0] = token;
   while(token) 
@@ -117,15 +131,20 @@ start_process (void *file_name_)
   success = load (argv[0], &if_.eip, &if_.esp);
 
   if(success){
+        // printf("load_succesed\n");
+
     parse_stack(argv, argc, &if_.esp);
     palloc_free_page (file_name);
 
     sema_up(&(thread_current()->parent)->load_lock);
+    sema_init(&sema,1);
+    sema_down(&sema);
+
 
   }
   else {
     // list_remove(&(thread_current()->child_list_elem));
-    printf("load_failed\n");
+    // printf("load_failed\n");
     thread_current()->exit = 1;
     /* If load failed, quit. */
     palloc_free_page (file_name);
@@ -223,6 +242,10 @@ process_exit (void)
       pagedir_destroy (pd);
     }
       sema_up(&parent->wait_lock);
+              sema_up(&sema);
+                  list_remove(&thread_current()->child_exec_elem);
+
+
 
 }
 
@@ -601,7 +624,6 @@ static bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
-
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
@@ -699,7 +721,7 @@ parse_stack(char** argv,int argc,void** esp){
 // }
 bool
 stack_growth(void* fault_addr){
-  // printf("stack  growth\n");
+  // printf("stack  growth tid %d\n",thread_current()->tid);
   // void* upage = pg_round_down(fault_addr);
   bool success = false;
   // struct spte* spte= create_spte(upage,MEMORY);

@@ -5,7 +5,7 @@
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
-
+#include "threads/thread.h"
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
 
@@ -126,7 +126,7 @@ void *
 pagedir_get_page (uint32_t *pd, const void *uaddr) 
 {
   uint32_t *pte;
-
+  // printf("access at %d\n",thread_current()->tid);
   ASSERT (is_user_vaddr (uaddr));
   
   pte = lookup_page (pd, uaddr, false);

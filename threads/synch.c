@@ -266,18 +266,19 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+      enum intr_level old_level;
+
+      old_level = intr_disable();
+
   struct thread* tholder = lock->holder;
   int current_priority=thread_get_priority();
   struct thread* current_thread =thread_current();
 
   //nested donate를 위한 코드
   if(tholder!=NULL){
-    enum intr_level old_level;
-    old_level = intr_disable();
 
     current_thread->lock_of_holder = lock;
     priority_donate(current_thread);
-    intr_set_level(old_level);
 
   }
   
@@ -285,6 +286,8 @@ lock_acquire (struct lock *lock)
 
   thread_current()->lock_of_holder =NULL;
   lock->holder = thread_current ();
+      intr_set_level(old_level);
+
   list_insert(list_begin (&thread_current()->lock_list),&(lock->lock_elem));
 
 
@@ -319,11 +322,12 @@ void
 lock_release (struct lock *lock) 
 {
     enum intr_level old_level;
-
+  
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  struct thread* tholder = lock->holder;
   old_level = intr_disable();
+    struct thread* tholder = lock->holder;
+
   lock->holder = NULL;
 
   //multiple donate를 위한 코드
